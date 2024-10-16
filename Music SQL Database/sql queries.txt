@@ -1,0 +1,62 @@
+--1-What are rock tracks sales quantity sold each year?
+
+SELECT date_part('year', invoicedate) AS year_month,
+       sum(quantity) quantity
+FROM invoice i
+JOIN invoiceline l ON l.invoiceid = i.invoiceid
+JOIN track t ON t.trackid = l.trackid
+JOIN genre g ON g.genreid = t.genreid
+WHERE g.name = 'Rock'
+GROUP BY 1
+
+
+--2-What are the genres with high sales?
+
+SELECT g.name , 
+       sum(l.quantity * l.unitprice) as sales
+FROM invoice i
+JOIN invoiceline l ON l.invoiceid = i.invoiceid
+JOIN track t ON t.trackid = l.trackid
+JOIN genre g ON g.genreid = t.genreid
+GROUP BY 1
+order by 2 desc
+
+
+--3-Who are the artists with high sales?
+
+SELECT art.name AS artist,
+       sum(l.quantity*l.unitprice) AS sales
+FROM invoice i
+JOIN invoiceline l ON l.invoiceid = i.invoiceid
+JOIN track t ON t.trackid = l.trackid
+JOIN album a ON a.albumid = t.albumid
+JOIN artist art ON art.artistid = a.artistid
+GROUP BY 1
+ORDER BY 2 DESC
+
+
+--4-What is the most popular genre each year?
+
+WITH sub AS
+  (SELECT date_part('year', invoicedate) AS year_,
+          g.name AS genre,
+          sum(quantity) quantity
+   FROM invoice i
+   JOIN invoiceline l ON l.invoiceid = i.invoiceid
+   JOIN track t ON t.trackid = l.trackid
+   JOIN genre g ON g.genreid = t.genreid
+   GROUP BY 1,
+            2)
+SELECT year_,
+       genre,
+       quantity,
+       CASE
+           WHEN quantity =
+                  (SELECT max(quantity)
+                   FROM sub
+                   WHERE year_=s.year_) THEN genre
+           ELSE 'other'
+       END max_genre
+FROM sub s
+ORDER BY 1,
+         3 DESC
