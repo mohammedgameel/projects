@@ -1,0 +1,603 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+M.Gameel
+========================================================
+
+## Dataset overview:
+Historical sales data for 45 stores located in different regions - each store contains a number of departments. The company also runs several promotional markdown events throughout the year. These markdowns precede prominent holidays
+
+the data consists of three files: 
+
+- Features:Contains additional data related to the store, department, and regional activity for the given dates.
+
+- Sales:Historical sales data
+
+- Stores:Anonymized information about the 45 stores, indicating the type and size of store
+
+I got this data from Kaggle [Retail Data Analytics](https://www.kaggle.com/manjeetsingh/retaildataset/home)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+#change directory
+getwd()
+setwd("E:/knowledge/online learning/DAND/EDA/project")
+```
+
+```{r echo=TRUE,message=FALSE, warning=FALSE, Load_the_Data}
+
+# Load the Data
+features = read.csv("Features data set.csv")
+sales = read.csv("sales data-set.csv")
+stores = read.csv("stores data-set.csv")
+
+#joining data
+data = inner_join(sales, stores , by = "Store")
+data = inner_join(data , features , by = c("Store" , "Date"))
+
+#examine the data
+str(data)
+
+#check if holdiies columns are the same and then drop one
+table(data$IsHoliday.x == data$IsHoliday.y)
+data = data[,names(data) != "IsHoliday.y"]
+
+#change some column names
+new_names = names(data)
+new_names[5] = "IsHoliday"
+new_names[6] = "Store_Type"
+new_names[7] = "Store_Size"
+names(data) = new_names
+
+#change some data types
+data$Date = as.Date(data$Date,"%d/%m/%Y")
+data$Store = as.factor(data$Store)
+data$Dept = as.factor(data$Dept)
+
+
+#sum all markdowns in one column
+data$Markdown = data$MarkDown1 + data$MarkDown2 + data$MarkDown3 + data$MarkDown4 + data$MarkDown5
+data[is.na(data$Markdown),"Markdown"] = 0
+
+#drop unnecessary  columns
+data = data[,!names(data) %in% c("MarkDown1","MarkDown2","MarkDown3","MarkDown4","MarkDown5")]
+
+#aggregate to get all Departments' sales
+
+data = data %>% group_by(Date,Store,Store_Type,Store_Size,Temperature,Fuel_Price,CPI,Unemployment,
+                         IsHoliday,Markdown) %>% 
+  summarise(Weekly_Sales = sum(Weekly_Sales))
+
+#export as a backup
+write.csv(data , "clean_sales.csv")
+
+```
+
+# Univariate Plots Section
+### the sahpe of data:
+
+```{r echo=FALSE, Univariate_Plots}
+dim(data)
+```
+
+Data consists of 6435 observations with 11 variables.
+
+### data structure and summary
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+str(data)
+summary(data)
+```
+
+- **Date**: the period of our investigation which starts at 5/2/2010 and ends at 26/10/2012 on week bases
+- **Store** : factor of 45 stores from different regions
+- **Store_type** : categorical variable of the levels A , B , c .indicates the level of store
+
+### store_size
+```{r echo=FALSE ,message=FALSE, warning=FALSE}
+qplot(data = data , Store_Size,binwidth=1000)
+summary(data$Store_Size)
+```
+
+looks like we have a large range of store sizes from 34 to 220 thousand square feet. Small number of stores in our data set has small area and large area .Our data set contains more  stores with medium area.I wonder if the area of the store has an  effect on sales.
+
+tabling of the store size:
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+table(data$Store_Size)
+```
+
+Note that the values are multiplicate of 143 which is the number of weeks in our investigation
+
+###Temperature
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Temperature,binwidth = 0.5)
+summary(data$Temperature)
+```
+
+looks like we have a good range of temperatures resulting from different  store locations and different  times of the year.I wonder what the sales look like in low temperature.
+
+### Fuel_price:
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Fuel_Price,binwidth = 0.1)
+summary(data$Fuel_Price)
+```
+
+the values of fuel prices range feom 2.5 to 4.5 .I wonder does the fuel price has an effect on sales
+
+###The Consumer Price Index (CPI):
+
+**First a small introduction to this measure : ** The Consumer Price Index (CPI) is a measure that examines the weighted average of prices of a basket of consumer goods and services, such as transportation, food and medical care. It is calculated by taking price changes for each item in the predetermined basket of goods and averaging them. Changes in the CPI are used to assess price changes associated with the cost of living; the CPI is one of the most frequently used statistics for identifying periods of inflation or deflation.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , CPI,binwidth = 1)
+summary(data$CPI)
+```
+
+The CPI varies  from 126 to 226 .There is a region of discontinuity between 140 to 180 approximately .this indicates tha we don't have stores with citys in that area of CPI.
+
+### Unemployment
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Unemployment,binwidth = 0.5)
+summary(data$Unemployment)
+```
+
+The Unemployment range from 3.8 to 14.3 . the high values may be outliers associated with extreme cases in certain regions.I wonder if the Unemployment has an effect on sales in that region.
+
+### IsHoliday
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , IsHoliday)
+summary(data$IsHoliday)
+```
+
+there is only 450 holiday situations given that we have 45 stores that's 10 weeks of holidays during our period of investigation
+
+### Markdown:
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Markdown)
+summary(data$Markdown)
+```
+
+i think it is useful to execlude the situations where there is no markdown to get clearer view.
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = subset(data,data$Markdown != 0) , Markdown)
+summary(subset(data,data$Markdown != 0) $Markdown)
+```
+
+the mark down varies from 567 to 160000 with most of the data below 50000 .
+
+
+### Weekly_Sales:
+the major variable in our data set.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Weekly_Sales)
+summary(data$Weekly_Sales)
+```
+
+the sales varies  from 209k to 3818k .With most data below 2 millions.I Wonder what caused those high sales at the end.
+
+# Univariate Analysis
+
+
+### What is the structure of your dataset?
+the data consists of 6435 obsevations of 11 variables
+
+other features:
+
+- Most of the stores are of medium area
+
+- the temperature and other variables varies
+
+- there are 10 weeks of holidays during our period of interest
+
+### What is/are the main feature(s) of interest in your dataset?
+the mean feature of interest is the weekly_sales.We want to investigate what other parameters affect it and how
+
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+all the other variables .I think all the other variables have a relation with sales and will investigate that in the next section
+
+### Did you create any new variables from existing variables in the dataset?
+
+YES,I summed all the markdowns in one column.
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+YEs, the data was provided in three files . I read them and joined them ,removed duplicated columns, changed some column names and data types and aggregated the weekly_sales . The code for this is provided at the beginning of the file.
+
+# Bivariate Plots Section
+let's create a matrix plot for all the variables to determine relationships
+
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(psych)
+pairs.panels(data, 
+             method = "pearson", # correlation method
+             hist.col = "#00AFBB",
+             density = TRUE,  # show density plots
+             ellipses = TRUE # show correlation ellipses
+             )
+
+```
+
+
+from the plot :
+
+- the fuel price increases with time
+
+- store type affects the sales A>B>c
+
+- high store type have large store size A>B>c
+
+- there is a positive relationship between store size and sales
+
+- there is a moderate positive relationship between sales and markdown
+
+- unemployment decreases with time
+
+- there is moderate negative relationship between unemployment and CPI
+
+## let's investigate more the sales related variables
+
+### relation between sales and markdown
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data= subset(data,data$Markdown != 0) , Markdown ,Weekly_Sales)
+```
+
+there is a moderate positive relationship with high variance at large markdown
+
+### relation between sales and holidays
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+diff_median = median(data[data$IsHoliday == TRUE,]$Weekly_Sales) - median(data[data$IsHoliday == FALSE,]$Weekly_Sales)
+
+qplot(data= data , IsHoliday ,Weekly_Sales,geom = "boxplot")+
+  coord_cartesian(ylim = c(0,2*10^6))+
+  annotate("text",x= 1.5 , y = 1250000 ,label = paste("The difference in medians  = ",as.character(round(diff_median),fill = "navyblue")
+))
+```
+
+the holidays have larger sales than ordinary sales
+
+note: I limited the y axis to 2 millions to clear the graph
+
+
+### realtion between sales and unemployment
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Unemployment , Weekly_Sales)
+```
+
+there is aweak relationship.but in general when unemployment increases to higher than 10 the sales decreases alittle
+
+### realtion between sales and CPI
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = data ,aes(x=CPI , y = Weekly_Sales))+
+  geom_jitter(alpha = 1/5, color = "orange")
+```
+
+the graph indicates a very weak relationship
+
+### realtion between sales and Fuel prce
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = data ,aes(x=Fuel_Price , y = Weekly_Sales))+
+  geom_jitter(alpha = 1/5, color = "orange")
+```
+
+the graph indicates a very weak relationship
+
+### realtion between sales and Temperature
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = data ,aes(x=Temperature , y = Weekly_Sales))+
+  geom_jitter(alpha = 1/5, color = "orange")
+```
+
+the graph indicates a very weak relationship
+
+### realtion between sales and store size
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Store_Size , Weekly_Sales ,ylim = c(0,3e+6))
+```
+
+there is  a positive relationship  between store size and sales which is reasonable and expected
+
+### realtion between sales and store type
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+meadians = data %>% group_by(Store_Type) %>% summarise(m = median(Weekly_Sales))
+qplot(data = data , Store_Type , Weekly_Sales ,geom = "boxplot")+
+  geom_text(data = meadians , aes(label = format(round(m),big.mark = ",") ,y= m+200000))
+
+```
+
+Despite we have small data about stores of class c, it is clear that sales of store A is the highest followed by store B the store C.
+
+### relationship of sales over the year
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(lubridate)
+ggplot(data = data , aes(month(Date) , Weekly_Sales))+
+  geom_point()+
+  scale_x_continuous(breaks = seq(1,12,1))
+
+```
+
+
+the sales vary through the year but significantly increases in the Christmas and Thanksgiving
+
+## variables other than sales:
+### the store type VS store size:
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+meadians = data %>% group_by(Store_Type) %>% summarise(m = median(Store_Size))
+qplot(data = data , Store_Type , Store_Size ,geom = "boxplot")+
+  geom_text(data = meadians , aes(label = format(round(m),big.mark = ",") ,y= m +20))
+
+```
+
+the stores with high rank tends to have larger size
+
+### relationship of temperature over the year
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(lubridate)
+ggplot(data = data , aes(month(Date) , Temperature))+
+  geom_point()+
+  scale_x_continuous(breaks = seq(1,12,1))
+
+```
+
+the temperature increases in summer and decreases in winter with different degrees in different locations
+
+### relationship of fuel price over the year
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Date , Fuel_Price)+
+  scale_x_date(date_breaks = "6 month" , date_labels = "%Y-%m")
+
+```
+
+the fuel price is increasing with time with ups and downs from 2011
+
+### relationship of CPI over the year
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Date , CPI)
+```
+
+looks like CPI varies across regions but there is an increasing trend in all regions
+
+### relationship of unemployment over the year
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+qplot(data = data , Date , Unemployment)
+```
+
+this plot is unclear I think it must be broken by region
+
+### what holidays does this data account for
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(lubridate)
+ggplot(data = data , aes(month(Date) , IsHoliday))+
+  geom_point()+
+  scale_x_continuous(breaks = seq(1,12,1))
+```
+
+this data accounts for the Super Bowl,Labor Day,Thanksgiving and Christmas
+
+
+### when are the markdowns
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(lubridate)
+ggplot(data = subset(data, data$Markdown != 0) , aes(month(Date) , Markdown))+
+  geom_point( position = position_jitter())+
+  scale_x_continuous(breaks = seq(1,12,1))
+```
+
+the markdowns frequently occur in feb ,nov and dec that is the Super Bowl,Thanksgiving and Christmas
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+the key contributors  to sales are the store size , store type and the markdown with small effect of unemployment
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+
+- the fuel price increased dramatically after 2011 with large fluctuations.
+- the CPI is increasing by time
+- the stores with higher grade tends to be bigger in size
+
+### What was the strongest relationship you found?
+the relationship between the weekly sales and the store size with correlation index of 0.81
+
+# Multivariate Plots Section
+
+### markdown with sales broken by store type
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = subset(data, data$Markdown != 0) , aes(x=Markdown , y=Weekly_Sales ,color = Store_Type))+
+  geom_line()+
+  scale_color_brewer(type = "qual")+
+  theme(panel.background = element_rect(fill = "black"))
+```
+
+although there is not a clear trend here but the sales tends to be higher with small markdowns.May be it is because the large markdown actually  lower the net sales amount . it would be useful if we have data about the quantity sold
+
+> because we have 45 stores the plots will be un clear,so will take a subset of stores 2A stores,2B stores and 2C stores which are (1,2,9,10,37,38)
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+datasmall = subset(data, Store %in% c(1,2,9,10,37,38))
+```
+
+### unemployment with sales broken by store
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = datasmall , aes(x=Unemployment , y= Weekly_Sales , color=Store))+
+  geom_line()
+```
+
+there is no trend of the unemployment with sales the large sales may be due to holidays
+
+### fuel price with sales broken by store
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = datasmall , aes(x=Fuel_Price , y= Weekly_Sales , color=Store))+
+  geom_line()
+```
+
+there is no trend of the fuel price with sales the large sales may be due to holidays
+
+### temperature with sales broken by store
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = datasmall , aes(x=Temperature , y= Weekly_Sales , color=Store))+
+  geom_line()
+```
+
+there is no trend of the temperature with sales the large sales may be due to holidays
+
+### CPI with sales broken by store
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = datasmall, 
+       aes(x=CPI , y= Weekly_Sales , color=Store))+
+  geom_line()
+```
+
+there is no trend of the CPI with sales the large sales may be due to holidays. Although  there is a small increase in sales due to the increase of the price of goods
+
+### unemployment with date broken by region
+in the bivariate section we couldn't get clear view of employment by date let's break it by some regions(stores)
+
+### CPI with sales broken by store
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = datasmall, 
+       aes(x=Date , y=Unemployment , color=Store))+
+  geom_line()
+```
+
+the unemployment is decreasing through time from 2010 to 2013 in our selected regions
+
+
+
+
+### CPI with date broken by region
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = datasmall, 
+       aes(x=Date , y=CPI , color=Store))+
+  geom_line()
+```
+
+the CPI is increasing through time from 2010 to 2013 in our selected regions
+
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+I tried to investigate more the effect of other factors like unemployment , fuel price , CPI , temperature on sales but there was no significant effect
+
+### Were there any interesting or surprising interactions between features?
+YES,the relationship between unemployment ,CPI and time wasn't clear in the previous section but when broken by region it was clear that the unemployment  decreased over time and the CPI increased over time
+
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the \
+strengths and limitations of your model.
+```{r echo=TRUE,message=FALSE, warning=FALSE}
+library(scales)
+library(memisc)
+test = as.Date("2012-02-03","%Y-%m-%d")
+m1 <- lm(Weekly_Sales ~ Store + Date  , data = data[data$Date < test,])
+m2 <- update(m1, ~ . + Store_Type)
+m3 <- update(m2, ~ . + Store_Size)
+m4 <- update(m3, ~ . + IsHoliday)
+m5 <- update(m4, ~ . + Fuel_Price)
+m6 <- update(m5, ~ . + CPI)
+m7 <- update(m6, ~ . + Unemployment) 
+m8 <- update(m7, ~ . + Temperature)
+m9 <- update(m8, ~ . + Markdown)
+mtable(m1, m2, m3, m4, m5,m6,m7,m8,m9 ,sdigits = 3,summary.stats=c("R-squared"))
+
+```
+
+```{r echo=TRUE,message=FALSE, warning=FALSE}
+predicted = predict(m9,newdata = data[data$Date >= test,])
+
+data$predict[data$Date >= test] = predicted
+
+#error percent
+summary((data[data$Date >= test,]$predict-
+           data[data$Date >= test,]$Weekly_Sales)*100/
+          data[data$Date >= test,]$Weekly_Sales)
+
+#calculate RSME
+sqrt(mean((data[data$Date >= test,]$predict- 
+             data[data$Date >= test,]$Weekly_Sales)^2))
+```
+
+the r square of the model looks good . i have calculated the error percent and the RSME for the model.looks like the model is over estimating the sales in most cases
+
+------
+
+# Final Plots and Summary
+
+
+### Plot One
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+meadians = data %>% group_by(Store_Type) %>% summarise(m = median(Weekly_Sales))
+ggplot(data = data , aes(Store_Type , Weekly_Sales,fill = Store_Type ))+
+  geom_boxplot()+
+  geom_text(data = meadians , aes(label = format(round(m),big.mark = ",") ,y= m+200000))+
+  ggtitle("Boxplot of the sales of different store types")+
+  labs(y="Weekly sales ($) ")
+```
+
+### Description One
+one of the strong relationships of sales is the store type . the store of type A
+has a median sales higher than the B and B has a median sales higher than C.
+
+### Plot Two
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(data = data , aes(Store_Size , Weekly_Sales))+
+  geom_point()+
+  ggtitle("scatter plot of the sales of different store sizes")+
+  labs(y="Weekly sales ($) " , x= "store size (sqft)")
+
+```
+
+### Description Two
+one of the strong relationships with sales is the store size the stores with larger size tends to have more sales
+
+### Plot Three
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+diff_median = median(data[data$IsHoliday == TRUE,]$Weekly_Sales) - median(data[data$IsHoliday == FALSE,]$Weekly_Sales)
+medians = data %>% group_by(IsHoliday) %>% summarise(m=median(Weekly_Sales))
+
+qplot(data= data , IsHoliday ,Weekly_Sales,geom = "boxplot",fill = IsHoliday)+
+  coord_cartesian(ylim = c(0,2*10^6))+
+  annotate("text",x= 1.5 , y = 0,label = paste("The difference in medians  = ",as.character(round(diff_median))))+
+  geom_text(data = medians ,aes(label = format(round(m),big.mark = ",") ,y= m +120000))+
+  labs(y="Weekly sales ($) ")+
+  ggtitle("The effect of holidays on sales")
+```
+
+### Description Three
+the holidays have a big effect on the sales . the weeks of holidays tends to have more sales than ordinary weeks with difference of nearly 62.5k
+
+------
+
+# Reflection
+
+
+The exploration was really fun. I discovered that the most three factors that affect retail sales are the store size , store type and holiday weeks
+
+Some of the struggles i went through that the bivariate exploration wasn't enough to understand the performance of unemployment and CPI over time .When broken by region ,it was clear that the unemployment was decreasing through time and the CPI
+is increasing
+
+It was really surprising that the outer factors like temperature, fuel price, CPI and unemployment don't have significant effect on sales I thought they are major contributors  specially CPI
+
+The amount of sales in dollars is misleading because it is effected by prices or any markdowns on the goods . A future investigation with the units of goods bought will be clearer  and more effected by other factors
